@@ -1,0 +1,11 @@
+model_type: cyclegan
+domain_X: chocolate_cake_mod
+domain_Y: cheese_cake_mod
+test_X: chocolate_cake_test
+test_Y: cheese_cake_test
+max_epoch: 100
+batch_size: 4
+image_size: 256
+learning_rate: 0.0001
+lambda_cyc: 10
+num_channels: 64
