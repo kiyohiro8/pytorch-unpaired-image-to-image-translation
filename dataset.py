@@ -12,7 +12,8 @@ class UnpairedImageDataset(Dataset):
     def __init__(self, domain_X, domain_Y, image_size, root="./data"):
         self.transform = Compose([  RandomCrop(image_size),
                                     RandomHorizontalFlip(p=0.5),
-                                    ToTensor()])
+                                    ToTensor(),
+                                    Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
         self.files_X = sorted(glob(os.path.join(root, domain_X) + '/*.*'))
         self.files_Y = sorted(glob(os.path.join(root, domain_Y) + '/*.*'))
@@ -24,9 +25,6 @@ class UnpairedImageDataset(Dataset):
         if self.transform is not None:
             item_X = self.transform(item_X)
             item_Y = self.transform(item_Y)
-        
-        item_X = (item_X - 0.5) * 2
-        item_Y = (item_Y - 0.5) * 2
 
         return item_X, item_Y
 

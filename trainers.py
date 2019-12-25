@@ -62,10 +62,10 @@ class CycleGANTrainer(BaseTrainer):
     def __init__(self, params):
         super(CycleGANTrainer, self).__init__(params)
         self.lambda_cyc = params["lambda_cyc"]
-        self.num_channels = params["num_channels"]
-
+        self.gen_num_channels = params["gen_num_channels"]
+        self.dis_num_channels = params["dis_num_channels"]
     def train(self):
-        model = CycleGAN(self.num_channels)
+        model = CycleGAN(self.gen_num_channels, self.dis_num_channels)
         self.cast_model(model)
         print("Constructed CycleGAN model.")
 
@@ -80,11 +80,11 @@ class CycleGANTrainer(BaseTrainer):
 
         # Construct Optimizers
         optimizer_G = Adam(itertools.chain(model.G_XY.parameters(), model.G_YX.parameters()), 
-                           lr=self.learning_rate, betas=(0.5, 0.999))
+                           lr=self.learning_rate, betas=(0.5, 0.99))
         optimizer_D_X = Adam(model.D_X.parameters(),
-                            lr=self.learning_rate, betas=(0.5, 0.999))
+                            lr=self.learning_rate, betas=(0.5, 0.99))
         optimizer_D_Y = Adam(model.D_Y.parameters(),
-                            lr=self.learning_rate, betas=(0.5, 0.999))
+                            lr=self.learning_rate, betas=(0.5, 0.99))
 
         lr_scheduler_G = torch.optim.lr_scheduler.LambdaLR(optimizer_G, lr_lambda=LambdaLR(self.max_epoch, 0,
                                                                                            self.max_epoch//2).step)
@@ -173,7 +173,8 @@ class CycleGANTrainer(BaseTrainer):
                 filelist = os.listdir(os.path.join(self.data_dir, self.test_X))
                 for filename in filelist:
                     image = imread(os.path.join(self.data_dir, self.test_X, filename))
-                    image = ((image.transpose((2, 0, 1))) / 127.5 - 1).astype(np.float32)
+                    image = image.astype(np.float32)
+                    image = ((image.transpose((2, 0, 1))) / 127.5 - 1)
                     image = torch.from_numpy(image).to(self.device).unsqueeze(0)
                     with torch.no_grad():
                         translated_image = model.G_XY(image)
@@ -185,11 +186,12 @@ class CycleGANTrainer(BaseTrainer):
                     image = np.transpose(image, (1, 2, 0))
                     imsave(os.path.join(self.sample_dir, f"{epoch:03}_{filename}"), image)
 
-            if self.test_X is not None:
+            if self.test_Y is not None:
                 filelist = os.listdir(os.path.join(self.data_dir, self.test_Y))
                 for filename in filelist:
                     image = imread(os.path.join(self.data_dir, self.test_Y, filename))
-                    image = ((image.transpose((2, 0, 1))) / 127.5 - 1).astype(np.float32)
+                    image = image.astype(np.float32)
+                    image = ((image.transpose((2, 0, 1))) / 127.5 - 1)
                     image = torch.from_numpy(image).to(self.device).unsqueeze(0)
                     with torch.no_grad():
                         translated_image = model.G_YX(image)
@@ -228,6 +230,14 @@ class CycleGANTrainer(BaseTrainer):
         model.G_YX.to(self.device)
         model.D_X.to(self.device)
         model.D_Y.to(self.device)
+
+
+class MUNITTrainer(BaseTrainer):
+    def __init__(self):
+        super(MUNITTrainer, self).__init__(params)
+
+    def train(self):
+        pass
 
 
 class LambdaLR():
