@@ -22,6 +22,11 @@ class UnpairedImageDataset(Dataset):
         item_X = Image.open(self.files_X[index])
         item_Y = Image.open(self.files_Y[index])
 
+        if item_X.mode == "L":
+            item_X = item_X.convert("RGB")
+        if item_Y.mode == "L":
+            item_Y = item_Y.convert("RGB")
+
         if self.transform is not None:
             item_X = self.transform(item_X)
             item_Y = self.transform(item_Y)

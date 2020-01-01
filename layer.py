@@ -65,11 +65,11 @@ class ResidualBlock(nn.Module):
     def __init__(self, num_channels, norm_layer):
         super(ResidualBlock, self).__init__()
 
-        conv_block = [  nn.ReplicationPad2d(1),
+        conv_block = [  nn.ReflectionPad2d(1),
                         nn.Conv2d(num_channels, num_channels, 3, bias=False),
                         norm_layer(num_channels),
                         nn.ReLU(inplace=True),
-                        nn.ReplicationPad2d(1),
+                        nn.ReflectionPad2d(1),
                         nn.Conv2d(num_channels, num_channels, 3, bias=False),
                         norm_layer(num_channels)  ]
 

@@ -4,6 +4,7 @@ import time
 from abc import ABCMeta, abstractmethod
 import itertools
 import json
+from distutils.util import strtobool
 
 import numpy as np
 from skimage.io import imsave, imread
@@ -15,7 +16,7 @@ from torch.utils.data import DataLoader
 
 from models import CycleGAN
 from dataset import UnpairedImageDataset, ReplayBuffer
-from losses import CriterionWGANgp
+from losses import CriterionWGANgp, LSGAN
 
 class BaseTrainer(metaclass=ABCMeta):
     def __init__(self, params: dict):
@@ -62,6 +63,11 @@ class CycleGANTrainer(BaseTrainer):
     def __init__(self, params):
         super(CycleGANTrainer, self).__init__(params)
         self.lambda_cyc = params["lambda_cyc"]
+        self.use_idt = params["use_idt"]
+        if self.use_idt:
+            print("use identity loss")
+        else:
+            print("not use identity loss")
         self.gen_num_channels = params["gen_num_channels"]
         self.dis_num_channels = params["dis_num_channels"]
     def train(self):
@@ -82,9 +88,9 @@ class CycleGANTrainer(BaseTrainer):
         optimizer_G = Adam(itertools.chain(model.G_XY.parameters(), model.G_YX.parameters()), 
                            lr=self.learning_rate, betas=(0.5, 0.99))
         optimizer_D_X = Adam(model.D_X.parameters(),
-                            lr=self.learning_rate, betas=(0.5, 0.99))
+                            lr=self.learning_rate*4, betas=(0.5, 0.99))
         optimizer_D_Y = Adam(model.D_Y.parameters(),
-                            lr=self.learning_rate, betas=(0.5, 0.99))
+                            lr=self.learning_rate*4, betas=(0.5, 0.99))
 
         lr_scheduler_G = torch.optim.lr_scheduler.LambdaLR(optimizer_G, lr_lambda=LambdaLR(self.max_epoch, 0,
                                                                                            self.max_epoch//2).step)
@@ -95,11 +101,13 @@ class CycleGANTrainer(BaseTrainer):
 
         #domain_loss_X = CriterionWGANgp(model.D_X)
         #domain_loss_Y = CriterionWGANgp(model.D_Y)
-        domain_loss_X = nn.BCELoss()
-        domain_loss_Y = nn.BCELoss()
+        domain_loss_X = LSGAN()
+        domain_loss_Y = LSGAN()
         cycle_consistency_loss = nn.L1Loss()
-        target_real = torch.ones((self.batch_size, 1), dtype=torch.float32).to(device=self.device)
-        target_fake = torch.zeros((self.batch_size, 1), dtype=torch.float32).to(device=self.device)
+        idt_loss = nn.L1Loss()
+        
+        target_real = torch.ones((self.batch_size, 1, 1, 1), dtype=torch.float32).to(device=self.device)
+        target_fake = torch.zeros((self.batch_size, 1, 1, 1), dtype=torch.float32).to(device=self.device)
 
         start_time = time.time()
         for epoch in range(1, self.max_epoch + 1):
@@ -122,8 +130,14 @@ class CycleGANTrainer(BaseTrainer):
                 loss_dx = domain_loss_X(model.D_X(YX), target_real)
                 loss_cyc_x = cycle_consistency_loss(XYX, images_X)
                 loss_cyc_y = cycle_consistency_loss(YXY, images_Y)
+                if self.use_idt:
+                    loss_idt_x = idt_loss(model.G_XY(images_Y), images_Y)
+                    loss_idt_y = idt_loss(model.G_YX(images_X), images_X)
 
                 loss_G = loss_dx + loss_dy + self.lambda_cyc * (loss_cyc_x + loss_cyc_y)
+
+                if self.use_idt:
+                    loss_G += 10 * (loss_idt_x + loss_idt_y)
 
                 optimizer_G.zero_grad()
                 loss_G.backward()
@@ -155,7 +169,8 @@ class CycleGANTrainer(BaseTrainer):
             dataloader.dataset.shuffle()
             
             # save generator's weights
-            self.save_weights(model, epoch)
+            if epoch % 10 == 0:
+                self.save_weights(model, epoch)
 
             # save sample image
             ori_image_X = images_X[0].detach()
