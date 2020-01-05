@@ -21,5 +21,11 @@ difficult samples
 
 CycleGAN does a good job of converting colors and textures, but not shapes (top). Also, this model doesn't seem to care about the differences between the contents of apples and oranges (bottom).
 
+### cat ⇔ dog
+
+![](https://github.com/kiyohiro8/pytorch-unpaired-image-to-image-translation/blob/master/sample/cat2dog_cyclegan_epoch_200.png)
+
+Although CycleGAN can change the appearance to some extent, it has not been able to change the outline of the face or the shape of the ear.
+
 ### cheese cake ⇔ chocolate cake
 ![](https://github.com/kiyohiro8/pytorch-unpaired-image-to-image-translation/blob/master/sample/cheesecake_chocolatecake_epoch100.png)
