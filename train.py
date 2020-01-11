@@ -9,7 +9,7 @@ def get_trainer(model_type: str, params: dict):
     if model_type == "cyclegan":
         trainer = trainers.CycleGANTrainer(params)
     elif model_type == "munit":
-        trainer = trainers.Trainer_MUNIT(domain_X, domain_Y, params)
+        trainer = trainers.MUNITTrainer(params)
     else:
         raise NotImplementedError
 

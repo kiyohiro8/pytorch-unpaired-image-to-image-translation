@@ -5,12 +5,14 @@ from PIL import Image
 
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms import Compose, ToTensor, RandomCrop, RandomHorizontalFlip, Resize, Normalize, RandomCrop
+from torchvision.transforms import Compose, ToTensor, RandomCrop, RandomHorizontalFlip, Resize, Normalize, RandomCrop,RandomRotation, ColorJitter
 
 
 class UnpairedImageDataset(Dataset):
     def __init__(self, domain_X, domain_Y, image_size, root="./data"):
-        self.transform = Compose([  RandomCrop(image_size),
+        self.transform = Compose([  ColorJitter(brightness=0.05, contrast=0.05),
+                                    RandomRotation(0.05),
+                                    RandomCrop(image_size),
                                     RandomHorizontalFlip(p=0.5),
                                     ToTensor(),
                                     Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
