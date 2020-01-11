@@ -265,8 +265,7 @@ class MUNITTrainer(BaseTrainer):
         dataset = UnpairedImageDataset(self.domain_X, self.domain_Y, self.image_size)
         dataloader = DataLoader(dataset, batch_size=self.batch_size, num_workers=4, drop_last=True)
         test_dataset = UnpairedImageDataset(self.domain_X+"_test", self.domain_Y+"_test", self.image_size)
-        test_dataloader = DataLoader(test_dataset, batch_size=3, num_workers=2, drop_last=True)
-
+        test_dataloader = DataLoader(test_dataset, batch_size=self.batch_size, num_workers=2, drop_last=True)
 
         buffer_X = ReplayBuffer()
         buffer_Y = ReplayBuffer()
@@ -369,7 +368,7 @@ class MUNITTrainer(BaseTrainer):
                 optimizer_D_Y.step()
 
                 print(f"loss_D_X: {loss_D_X.item():.4f}, loss_D_Y: {loss_D_Y.item():.4f}, loss_G: {loss_G.item():.4f}")
-                break
+                
             # data shuffle at end of epoch
             dataloader.dataset.shuffle()
 
@@ -384,7 +383,7 @@ class MUNITTrainer(BaseTrainer):
             self.save_sample(fake_sample_Y, self.domain_X, self.domain_Y, epoch)
             self.save_sample(fake_sample_X, self.domain_Y, self.domain_X, epoch)
 
-            for i, (images_X, images_Y) in enumerate(test_dataloader):
+            for i, batch in enumerate(test_dataloader):
                 images_X, images_Y = self.cast_images(batch)
                 fake_sample_X, fake_sample_Y = self.generate_convert_sample(images_X, images_Y, model)
                 self.save_sample(fake_sample_Y, self.domain_X, self.domain_Y, epoch, i)
@@ -454,8 +453,8 @@ class MUNITTrainer(BaseTrainer):
         fake_Y_rows = np.concatenate([images_X_rows, fake_Y], axis=2)
         fake_Y = np.concatenate([fake_Y_columns, fake_Y_rows], axis=1)
 
-        fake_X = ((fake_X.transpose((1, 2, 0)) + 1) * 127.5).astype(np.uint8)
-        fake_Y = ((fake_Y.transpose((1, 2, 0)) + 1) * 127.5).astype(np.uint8)
+        fake_X = np.transpose(fake_X, (1, 2, 0))
+        fake_Y = np.transpose(fake_Y, (1, 2, 0))
 
         return fake_X, fake_Y
                 

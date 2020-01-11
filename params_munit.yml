@@ -4,10 +4,10 @@ domain_Y: dog
 test_X: cat_test
 test_Y: dog_test
 max_epoch: 200
-batch_size: 2
+batch_size: 4
 image_size: 176
 learning_rate: 0.0002
-lambda_image: 1
+lambda_image: 10
 lambda_content: 1
 lambda_style: 1
 num_channels: 64
