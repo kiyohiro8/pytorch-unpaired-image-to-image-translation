@@ -97,10 +97,20 @@ class CriterionWGANgp(GANLoss):
         return loss
 
 class LSGAN(nn.Module):
-    def __init__(self):
+    def __init__(self, target_real, target_fake):
         super(LSGAN, self).__init__()
+        self.target_real = target_real
+        self.target_fake = target_fake
         
-    def forward(self, input, target):
-        loss = (target - input) ** 2
-        return torch.mean(loss)
+    def forward(self, input, is_real):
+        if is_real:
+            target = self.target_real
+        else:
+            target = self.target_fake
+        loss = 0
+        if not isinstance(input, list):
+            input = [input]
+        for ipt in input:
+            loss += torch.mean((target - ipt) ** 2)
+        return loss
         

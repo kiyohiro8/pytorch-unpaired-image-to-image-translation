@@ -100,8 +100,10 @@ class CycleGANTrainer(BaseTrainer):
         lr_scheduler_D_Y = torch.optim.lr_scheduler.LambdaLR(optimizer_D_Y, lr_lambda=LambdaLR(self.max_epoch, 0,
                                                                                            self.max_epoch//2).step)
 
-        domain_loss_X = LSGAN()
-        domain_loss_Y = LSGAN()
+        target_real = torch.ones((self.batch_size, 1, 1, 1), dtype=torch.float32).to(device=self.device)
+        target_fake = torch.zeros((self.batch_size, 1, 1, 1), dtype=torch.float32).to(device=self.device)
+        domain_loss = LSGAN(target_real, target_fake)
+
         cycle_consistency_loss = nn.L1Loss()
         idt_loss = nn.L1Loss()
         
@@ -123,8 +125,8 @@ class CycleGANTrainer(BaseTrainer):
                 YX = model.G_YX(images_Y)
                 YXY = model.G_XY(YX)
 
-                loss_dy = domain_loss_Y(model.D_Y(XY), target_real)
-                loss_dx = domain_loss_X(model.D_X(YX), target_real)
+                loss_dy = domain_loss(model.D_Y(XY), is_real=True)
+                loss_dx = domain_loss(model.D_X(YX), is_real=True)
                 loss_cyc_x = cycle_consistency_loss(XYX, images_X)
                 loss_cyc_y = cycle_consistency_loss(YXY, images_Y)
                 if self.use_idt:
@@ -148,13 +150,13 @@ class CycleGANTrainer(BaseTrainer):
                 YX = (model.G_YX(images_Y)).detach()
                 YX = buffer_X.push_and_pop(YX)
                 # train discriminator X
-                loss_D_X = domain_loss_X(model.D_X(YX), target_fake) + domain_loss_X(model.D_X(images_X), target_real)
+                loss_D_X = domain_loss(model.D_X(YX), is_real=False) + domain_loss(model.D_X(images_X), is_real=True)
                 optimizer_D_X.zero_grad()
                 loss_D_X.backward()
                 optimizer_D_X.step()
 
                 # train discriminator Y
-                loss_D_Y = domain_loss_Y(model.D_Y(XY), target_fake) + domain_loss_Y(model.D_Y(images_Y), target_real)
+                loss_D_Y = domain_loss(model.D_Y(XY), is_real=False) + domain_loss(model.D_Y(images_Y), is_real=True)
                 optimizer_D_Y.zero_grad()
                 loss_D_Y.backward()
                 optimizer_D_Y.step()
@@ -291,12 +293,10 @@ class MUNITTrainer(BaseTrainer):
                                                                                            self.max_epoch//2).step)
         lr_scheduler_D_Y = torch.optim.lr_scheduler.LambdaLR(optimizer_D_Y, lr_lambda=LambdaLR(self.max_epoch, 0,
                                                                                            self.max_epoch//2).step)
-
-        domain_loss = LSGAN()
-        reconstruction_loss = nn.L1Loss()
-        
         target_real = torch.ones((self.batch_size, 1, 1, 1), dtype=torch.float32).to(device=self.device)
         target_fake = torch.zeros((self.batch_size, 1, 1, 1), dtype=torch.float32).to(device=self.device)
+        domain_loss = LSGAN(target_real, target_fake)
+        reconstruction_loss = nn.L1Loss()
 
         start_time = time.time()
         for epoch in range(1, self.max_epoch + 1):
@@ -324,8 +324,8 @@ class MUNITTrainer(BaseTrainer):
                 rec_s_Y = model.style_enc_Y(fake_Y)
                 rec_s_X = model.style_enc_X(fake_X)
 
-                loss_gan = domain_loss(model.dis_X(fake_X), target_real) + \
-                           domain_loss(model.dis_Y(fake_Y), target_real)
+                loss_gan = domain_loss(model.dis_X(fake_X), is_real=True) + \
+                           domain_loss(model.dis_Y(fake_Y), is_real=True)
 
                 loss_image_rec = reconstruction_loss(rec_X, images_X) + \
                                  reconstruction_loss(rec_Y, images_Y)
@@ -354,15 +354,16 @@ class MUNITTrainer(BaseTrainer):
                 fake_X_D = buffer_X.push_and_pop(fake_X)
                 fake_Y_D = buffer_Y.push_and_pop(fake_Y)
 
-                loss_D_X = domain_loss(model.dis_X(images_X), target_real) + \
-                           domain_loss(model.dis_X(fake_X_D), target_fake)
-                loss_D_Y = domain_loss(model.dis_Y(images_Y), target_real) + \
-                           domain_loss(model.dis_Y(fake_Y_D), target_fake)
-                
+                loss_D_X = domain_loss(model.dis_X(images_X), is_real=True) + \
+                           domain_loss(model.dis_X(fake_X_D), is_real=False)
+
                 optimizer_D_X.zero_grad()
                 loss_D_X.backward()
                 optimizer_D_X.step()
-
+                
+                loss_D_Y = domain_loss(model.dis_Y(images_Y), is_real=True) + \
+                           domain_loss(model.dis_Y(fake_Y_D), is_real=False)
+                
                 optimizer_D_Y.zero_grad()
                 loss_D_Y.backward()
                 optimizer_D_Y.step()

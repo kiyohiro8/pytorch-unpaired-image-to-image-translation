@@ -3,8 +3,8 @@ domain_X: cat
 domain_Y: dog
 test_X: cat_test
 test_Y: dog_test
-max_epoch: 200
-batch_size: 4
+max_epoch: 1000
+batch_size: 1
 image_size: 176
 learning_rate: 0.0002
 lambda_image: 10
