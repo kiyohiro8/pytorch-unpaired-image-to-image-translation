@@ -28,4 +28,8 @@ CycleGAN does a good job of converting colors and textures, but not shapes (top)
 Although CycleGAN can change the appearance to some extent, it has not been able to change the outline of the face or the shape of the ear.
 
 ### cheese cake ⇔ chocolate cake
-![](https://github.com/kiyohiro8/pytorch-unpaired-image-to-image-translation/blob/master/sample/cheesecake_chocolatecake_epoch100.png)
+#### Without PatchGAN
+![](https://github.com/kiyohiro8/pytorch-unpaired-image-to-image-translation/blob/master/sample/cheesecake_chocolatecake_epoch100_nonPatchGAN.png)
+
+#### With PatchGAN
+![](https://github.com/kiyohiro8/pytorch-unpaired-image-to-image-translation/blob/master/sample/cheesecake_chocolatecake_epoch200_PatchGAN.png)
