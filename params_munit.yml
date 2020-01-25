@@ -1,11 +1,11 @@
 model_type: munit
-domain_X: cat
-domain_Y: dog
-test_X: cat_test
-test_Y: dog_test
-max_epoch: 1000
+domain_X: horse
+domain_Y: zebra
+test_X: horse_test
+test_Y: zebra_test
+max_epoch: 500
 batch_size: 1
-image_size: 176
+image_size: 256
 learning_rate: 0.0002
 lambda_image: 10
 lambda_content: 1

@@ -14,7 +14,7 @@ from torch import nn
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 
-from models import CycleGAN, MUNIT
+import models
 from dataset import UnpairedImageDataset, ReplayBuffer
 from losses import CriterionWGANgp, LSGAN
 
@@ -72,6 +72,7 @@ class CycleGANTrainer(BaseTrainer):
         self.gen_num_channels = params["gen_num_channels"]
         self.dis_num_channels = params["dis_num_channels"]
     def train(self):
+        from models.cyclegan import CycleGAN
         model = CycleGAN(self.gen_num_channels, self.dis_num_channels)
         self.cast_model(model)
         print("Constructed CycleGAN model.")
@@ -259,6 +260,7 @@ class MUNITTrainer(BaseTrainer):
         self.style_dim = params["style_dim"]
 
     def train(self):
+        from models.munit import MUNIT
         model = MUNIT(self.num_channels, self.style_dim)
         self.cast_model(model)
         print("Constructed MUNIT model.")
@@ -489,6 +491,29 @@ class MUNITTrainer(BaseTrainer):
         model.dec_Y.to(self.device)
         model.dis_X.to(self.device)
         model.dis_Y.to(self.device)
+
+
+class AttentionGuidedGANTrainer(BaseTrainer):
+    def __init__(self, params):
+        super(AttentionGuidedGANTrainer, self).__init__()
+        self.lambda_cyc = params["lambda_cyc"]
+        self.attention_gan = params["attention_gan"]
+        self.attention = params["attention"]
+        self.use_idt = params["use_idt"]
+        if self.use_idt:
+            print("use identity loss")
+        else:
+            print("not use identity loss")
+        self.gen_num_channels = params["gen_num_channels"]
+        self.dis_num_channels = params["dis_num_channels"]
+
+    def train(self):
+        #model = models.AttentionGuidedGAN(self.num_channels)
+        #self.cast_model(model)
+        print("Constructed Attention Guided GAN model.")
+
+    def cast_model(self, model):
+        pass
 
 
 class LambdaLR():

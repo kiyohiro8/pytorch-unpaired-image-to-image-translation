@@ -10,6 +10,8 @@ def get_trainer(model_type: str, params: dict):
         trainer = trainers.CycleGANTrainer(params)
     elif model_type == "munit":
         trainer = trainers.MUNITTrainer(params)
+    elif model_type == "attention":
+        trainer = trainers.AttentionGuidedGANTrainer(params)
     else:
         raise NotImplementedError
 
