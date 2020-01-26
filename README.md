@@ -1,5 +1,22 @@
 # Comparing Image-to-Image translation algorithms
 
+
+# Origin of Dataset
+
+Datasets used in this repository was obtained from the following location.
+
+## horse2zebra, apple2orange
+
+These datasets were obtained from CycleGAN project page. 
+https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix
+
+## dog2cat
+
+This dataset was obtained from DRIT++ project page
+https://github.com/HsinYingLee/DRIT
+
+## cheesecake2chocolatecake
+
 ## CycleGAN
 
 ### horse ⇔ zebra
