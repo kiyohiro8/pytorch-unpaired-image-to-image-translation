@@ -1,8 +1,8 @@
 model_type: cyclegan
-domain_X: cheese_cake
-domain_Y: chocolate_cake
-test_X: cheese_cake_test
-test_Y: chocolate_cake_test
+domain_X: horse
+domain_Y: zebra
+test_X: horse_test
+test_Y: zebra_test
 max_epoch: 200
 batch_size: 2
 image_size: 256

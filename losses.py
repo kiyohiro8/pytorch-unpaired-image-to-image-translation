@@ -113,4 +113,15 @@ class LSGAN(nn.Module):
         for ipt in input:
             loss += torch.mean((target - ipt) ** 2)
         return loss
+
+class AttentionLoss(nn.Module):
+    def __init__(self):
+        super(AttentionLoss, self).__init__()
+
+    def forward(self, input):
+        mask = input[:, 0, :, :]
+        loss = torch.mean(torch.abs(mask[:, :-1, :] - mask[:, 1:, :])) + \
+               torch.mean(torch.abs(mask[:, :, :-1] - mask[:, :, 1:])) + \
+               torch.mean(mask ** 2)
+        return loss
         

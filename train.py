@@ -10,7 +10,7 @@ def get_trainer(model_type: str, params: dict):
         trainer = trainers.CycleGANTrainer(params)
     elif model_type == "munit":
         trainer = trainers.MUNITTrainer(params)
-    elif model_type == "attention":
+    elif model_type == "attentiongan":
         trainer = trainers.AttentionGuidedGANTrainer(params)
     else:
         raise NotImplementedError
@@ -29,7 +29,7 @@ if __name__ == "__main__":
         params = yaml.load(f, Loader=yaml.SafeLoader)
 
     model_type = params["model_type"]
-    assert model_type in ["cyclegan", "munit"], "model_type is not appropriate."
+    assert model_type in ["cyclegan", "munit", "attentiongan"], "model_type is not appropriate."
 
     domain_X = params["domain_X"]
     domain_Y = params["domain_Y"]

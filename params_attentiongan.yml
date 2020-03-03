@@ -1,0 +1,14 @@
+model_type: attentiongan
+domain_X: cheese_cake
+domain_Y: chocolate_cake
+test_X: cheese_cake_test
+test_Y: chocolate_cake_test
+max_epoch: 200
+batch_size: 2
+image_size: 256
+learning_rate: 0.0002
+lambda_cyc: 1
+lambda_pixel: 1
+lambda_attention: 1
+num_channels: 64
+use_idt: False

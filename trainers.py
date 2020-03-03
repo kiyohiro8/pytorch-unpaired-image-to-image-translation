@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 
 import models
 from dataset import UnpairedImageDataset, ReplayBuffer
-from losses import CriterionWGANgp, LSGAN
+from losses import CriterionWGANgp, LSGAN, AttentionLoss
 
 
 class BaseTrainer(metaclass=ABCMeta):
@@ -495,25 +495,249 @@ class MUNITTrainer(BaseTrainer):
 
 class AttentionGuidedGANTrainer(BaseTrainer):
     def __init__(self, params):
-        super(AttentionGuidedGANTrainer, self).__init__()
+        super(AttentionGuidedGANTrainer, self).__init__(params)
         self.lambda_cyc = params["lambda_cyc"]
-        self.attention_gan = params["attention_gan"]
-        self.attention = params["attention"]
+        self.lambda_pixel = params["lambda_pixel"]
+        self.lambda_attention = params["lambda_attention"]
         self.use_idt = params["use_idt"]
         if self.use_idt:
             print("use identity loss")
         else:
             print("not use identity loss")
-        self.gen_num_channels = params["gen_num_channels"]
-        self.dis_num_channels = params["dis_num_channels"]
+        self.num_channels = params["num_channels"]
 
     def train(self):
-        #model = models.AttentionGuidedGAN(self.num_channels)
-        #self.cast_model(model)
+        from models.attentiongan import AttentionGuidedGAN
+        model = AttentionGuidedGAN(self.num_channels)
+        self.cast_model(model)
         print("Constructed Attention Guided GAN model.")
 
+        # Construct Dataloader
+        dataset = UnpairedImageDataset(self.domain_X, self.domain_Y, self.image_size)
+        dataloader = DataLoader(dataset, batch_size=self.batch_size, num_workers=4, drop_last=True)
+
+        buffer_X = ReplayBuffer()
+        buffer_Y = ReplayBuffer()
+        buffer_AX = ReplayBuffer()
+        buffer_AY = ReplayBuffer()
+
+        print("Construced dataloader.")
+
+        # Construct Optimizers
+        optimizer_G = Adam(itertools.chain(model.gen_XY.parameters(), 
+                                           model.gen_YX.parameters()), 
+                           lr=self.learning_rate, betas=(0.5, 0.99))
+        optimizer_D_X = Adam(model.dis_X.parameters(),
+                            lr=self.learning_rate*4, betas=(0.5, 0.99))
+        optimizer_D_Y = Adam(model.dis_Y.parameters(),
+                            lr=self.learning_rate*4, betas=(0.5, 0.99))
+        optimizer_D_AX = Adam(model.attn_dis_X.parameters(),
+                            lr=self.learning_rate*4, betas=(0.5, 0.99))
+        optimizer_D_AY = Adam(model.attn_dis_Y.parameters(),
+                            lr=self.learning_rate*4, betas=(0.5, 0.99))
+
+        lr_scheduler_G = torch.optim.lr_scheduler.LambdaLR(optimizer_G, lr_lambda=LambdaLR(self.max_epoch, 0,
+                                                                                           self.max_epoch//2).step)
+        lr_scheduler_D_X = torch.optim.lr_scheduler.LambdaLR(optimizer_D_X, lr_lambda=LambdaLR(self.max_epoch, 0,
+                                                                                           self.max_epoch//2).step)
+        lr_scheduler_D_Y = torch.optim.lr_scheduler.LambdaLR(optimizer_D_Y, lr_lambda=LambdaLR(self.max_epoch, 0,
+                                                                                           self.max_epoch//2).step)
+        lr_scheduler_D_AX = torch.optim.lr_scheduler.LambdaLR(optimizer_D_AX, lr_lambda=LambdaLR(self.max_epoch, 0,
+                                                                                           self.max_epoch//2).step)
+        lr_scheduler_D_AY = torch.optim.lr_scheduler.LambdaLR(optimizer_D_AY, lr_lambda=LambdaLR(self.max_epoch, 0,
+                                                                                           self.max_epoch//2).step)
+        target_real = torch.ones((self.batch_size, 1, 1, 1), dtype=torch.float32).to(device=self.device)
+        target_fake = torch.zeros((self.batch_size, 1, 1, 1), dtype=torch.float32).to(device=self.device)
+        domain_loss = LSGAN(target_real, target_fake)
+        reconstruction_loss = nn.L1Loss()
+        attention_loss = AttentionLoss()
+
+
+        start_time = time.time()
+        for epoch in range(1, self.max_epoch + 1):
+            print(f"epoch {epoch} starts.")
+            for batch in dataloader:
+                image_X, image_Y = self.cast_images(batch)
+
+                #
+                # train generator
+                #
+
+                fake_Y_content, fake_Y_mask = model.gen_XY(image_X)
+                fake_X_content, fake_X_mask = model.gen_YX(image_Y)
+                print(torch.sum(fake_Y_mask).item(), torch.sum(fake_X_mask).item())
+
+                #fake_Y_mask = fake_Y_mask.repeat(1, 3, 1, 1)
+                #fake_X_mask = fake_X_mask.repeat(1, 3, 1, 1)
+
+                #fake_Y_image = fake_Y_mask * fake_Y_content + (1 - fake_Y_mask) * image_X
+                #fake_X_image = fake_X_mask * fake_X_content + (1 - fake_X_mask) * image_Y
+
+                fake_Y_image = self.merge_images(fake_Y_content, image_X, fake_Y_mask)
+                fake_X_image = self.merge_images(fake_X_content, image_Y, fake_X_mask)
+
+                rec_X_content, rec_X_mask = model.gen_YX(fake_Y_image)
+                rec_Y_content, rec_Y_mask = model.gen_XY(fake_X_image)
+
+                #rec_X_mask = rec_X_mask.repeat(1, 3, 1, 1)
+                #rec_Y_mask = rec_Y_mask.repeat(1, 3, 1, 1)
+
+                #rec_X_image = rec_X_mask * rec_X_content + (1 - rec_X_mask) * fake_Y_image
+                #rec_Y_image = rec_Y_mask * rec_Y_content + (1 - rec_Y_mask) * fake_X_image
+
+                rec_X_image = self.merge_images(rec_X_content, fake_Y_image, rec_X_mask)
+                rec_Y_image = self.merge_images(rec_Y_content, fake_X_image, rec_Y_mask)
+
+                attention_guided_fake_image_Y = rec_X_mask * (fake_Y_image)
+                attention_guided_fake_image_X = rec_Y_mask * (fake_X_image)
+
+                loss_g_gan = domain_loss(model.dis_Y(fake_Y_image), is_real=True) + \
+                             domain_loss(model.dis_X(fake_X_image), is_real=True) + \
+                             domain_loss(model.attn_dis_Y(attention_guided_fake_image_Y), is_real=True) + \
+                             domain_loss(model.attn_dis_X(attention_guided_fake_image_X), is_real=True)
+                loss_g_cyc = reconstruction_loss(rec_X_image, image_X) + \
+                             reconstruction_loss(rec_Y_image, image_Y)
+                loss_g_pixel = reconstruction_loss(fake_Y_image, image_X) + \
+                               reconstruction_loss(fake_X_image, image_Y)
+                loss_g_attn = attention_loss(fake_X_mask) + attention_loss(fake_Y_mask)
+
+                loss_g = loss_g_gan + \
+                         self.lambda_cyc * loss_g_cyc + \
+                         self.lambda_pixel * loss_g_pixel + \
+                         self.lambda_attention * loss_g_attn
+
+                optimizer_G.zero_grad()
+                loss_g.backward()
+                optimizer_G.step()
+
+
+
+                #
+                # train discriminators
+                #
+
+                fake_X_image = fake_X_image.detach()
+                fake_Y_image = fake_Y_image.detach()
+
+                fake_X_image = buffer_X.push_and_pop(fake_X_image)
+                fake_Y_image = buffer_Y.push_and_pop(fake_Y_image)
+
+                real_AX_image = (image_X) * fake_Y_mask.detach()
+                real_AY_image = (image_Y) * fake_X_mask.detach()
+
+                fake_AX_image = buffer_AX.push_and_pop(attention_guided_fake_image_X.detach())
+                fake_AY_image = buffer_AY.push_and_pop(attention_guided_fake_image_Y.detach())
+
+                loss_d_x = domain_loss(model.dis_X(image_X), is_real=True) + \
+                           domain_loss(model.dis_X(fake_X_image), is_real=False)
+                optimizer_D_X.zero_grad()
+                loss_d_x.backward()
+                optimizer_D_X.step()
+
+                loss_d_y = domain_loss(model.dis_Y(image_Y), is_real=True) + \
+                           domain_loss(model.dis_Y(fake_Y_image), is_real=False)
+                optimizer_D_Y.zero_grad()
+                loss_d_y.backward()
+                optimizer_D_Y.step()
+                
+
+                loss_d_ax = domain_loss(model.attn_dis_X(real_AX_image), is_real=True) + \
+                            domain_loss(model.attn_dis_X(fake_AX_image), is_real=False)
+                optimizer_D_AX.zero_grad()
+                loss_d_ax.backward()
+                optimizer_D_AX.step()
+
+                loss_d_ay = domain_loss(model.attn_dis_Y(real_AY_image), is_real=True) + \
+                            domain_loss(model.attn_dis_Y(fake_AY_image), is_real=False)
+                optimizer_D_AY.zero_grad()
+                loss_d_ay.backward()
+                optimizer_D_AY.step()
+
+                print(f"loss_D: {loss_d_x.item() + loss_d_y.item():.5f}, loss_AD: {loss_d_ax.item() + loss_d_ay.item():.5f}, loss_G: {loss_g.item():.5f}")
+                #print(f"loss_D: {loss_d_x.item() + loss_d_y.item():.5f}, loss_G: {loss_g.item():.5f}")
+            # data shuffle at end of epoch
+            dataloader.dataset.shuffle()
+
+            # save generator's weights
+            if epoch % 10 == 0:
+                self.save_weights(model, epoch)        
+
+            # test sample
+            if self.test_X is not None:
+                filelist = os.listdir(os.path.join(self.data_dir, self.test_X))
+                for filename in filelist:
+                    image = imread(os.path.join(self.data_dir, self.test_X, filename))
+                    image = image.astype(np.float32)
+                    image = ((image.transpose((2, 0, 1))) / 127.5 - 1)
+                    image = torch.from_numpy(image).to(self.device).unsqueeze(0)
+                    with torch.no_grad():
+                        translated_image, attention = model.gen_XY(image)
+                    image = np.squeeze(image.to("cpu").numpy(), axis=0)
+                    translated_image = np.squeeze(translated_image.to("cpu").numpy(), axis=0)
+                    attention = np.squeeze(attention.to("cpu").numpy(), axis=0)
+                    translated_image = resize(translated_image, image.shape)
+                    attention = resize(attention, (1,) + image.shape[1:], anti_aliasing=False)
+
+                    translated_image = self.merge_images(translated_image, image, attention)
+                    attention = (np.tile(attention, (3, 1, 1)) - 0.5) * 2
+                    image = np.concatenate([image, translated_image, attention], axis=2)
+                    image = ((image + 1) * 127.5).astype(np.uint8)
+                    image = np.transpose(image, (1, 2, 0))
+                    imsave(os.path.join(self.sample_dir, f"{epoch:03}_{filename}"), image)
+
+            if self.test_Y is not None:
+                filelist = os.listdir(os.path.join(self.data_dir, self.test_Y))
+                for filename in filelist:
+                    image = imread(os.path.join(self.data_dir, self.test_Y, filename))
+                    image = image.astype(np.float32)
+                    image = ((image.transpose((2, 0, 1))) / 127.5 - 1)
+                    image = torch.from_numpy(image).to(self.device).unsqueeze(0)
+                    with torch.no_grad():
+                        translated_image, attention = model.gen_YX(image)
+                    image = np.squeeze(image.to("cpu").numpy(), axis=0)
+                    translated_image = np.squeeze(translated_image.to("cpu").numpy(), axis=0)
+                    attention = np.squeeze(attention.to("cpu").numpy(), axis=0)
+                    translated_image = resize(translated_image, image.shape)
+                    attention = resize(attention, (1,) + image.shape[1:], anti_aliasing=False)
+
+                    translated_image = self.merge_images(translated_image, image, attention)
+                    attention = (np.tile(attention, (3, 1, 1)) - 0.5) * 2
+                    image = np.concatenate([image, translated_image, attention], axis=2)
+                    image = ((image + 1) * 127.5).astype(np.uint8)
+                    image = np.transpose(image, (1, 2, 0))
+                    imsave(os.path.join(self.sample_dir, f"{epoch:03}_{filename}"), image)
+
+            elapsed = time.time() - start_time
+            print(f"Epoch {epoch} ends. (total time: {elapsed:.2f})")
+
+            lr_scheduler_G.step()
+            lr_scheduler_D_X.step()
+            lr_scheduler_D_Y.step()
+            lr_scheduler_D_AX.step()
+            lr_scheduler_D_AY.step()
+
+                
+    def save_weights(self, model, epoch):
+        torch.save(model.gen_XY.state_dict(), os.path.join(self.weight_dir, f"Generator_{self.domain_X}2{self.domain_Y}_{epoch:04}.pth"))
+        torch.save(model.gen_YX.state_dict(), os.path.join(self.weight_dir, f"Generator_{self.domain_Y}2{self.domain_X}_{epoch:04}.pth"))
+
     def cast_model(self, model):
-        pass
+        model.gen_XY.to(self.device)
+        model.gen_YX.to(self.device)
+        model.dis_X.to(self.device)
+        model.dis_Y.to(self.device)
+        model.attn_dis_X.to(self.device)
+        model.attn_dis_Y.to(self.device)
+
+    def cast_images(self, batch):
+        image_X, image_Y = batch
+        image_X = image_X.to(self.device)
+        image_Y = image_Y.to(self.device)
+        return image_X, image_Y
+
+    def merge_images(self, fore_image, back_image, mask):
+        image = (fore_image + 1) * mask + (back_image + 1) * (1 - mask) - 1
+        return image
 
 
 class LambdaLR():
