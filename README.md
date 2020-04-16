@@ -50,3 +50,14 @@ Although CycleGAN can change the appearance to some extent, it has not been able
 
 #### With PatchGAN
 ![](https://github.com/kiyohiro8/pytorch-unpaired-image-to-image-translation/blob/master/sample/cheesecake_chocolatecake_epoch200_PatchGAN.png)
+
+
+## AttentionGAN
+AttentionGAN (https://arxiv.org/abs/1903.12296) implemented with PyTorch
+
+### Compare with CycleGAN
+![](https://github.com/kiyohiro8/pytorch-unpaired-image-to-image-translation/blob/master/sample/cyclegan_attentiongan_compare_1.png)
+
+![](https://github.com/kiyohiro8/pytorch-unpaired-image-to-image-translation/blob/master/sample/cyclegan_attentiongan_compare_2.png)
+
+![](https://github.com/kiyohiro8/pytorch-unpaired-image-to-image-translation/blob/master/sample/cyclegan_attentiongan_compare_3.png)
